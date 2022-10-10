@@ -21,9 +21,9 @@ def scrape():
     mars = mongo.db.mars
     mars_data = scraping.scrape_all()
     mars.update_one({}, {"$set":mars_data}, upsert= True)
-    return redirect('/', code 302)
+    return redirect('/', code= 302)
 
-.update_one(query_parameter, {"$set": data}, options)
+mars.update_one({}, {"$set": mars_data}, upsert= true)
 
 if __name__ == "__main__":
     app.run()
