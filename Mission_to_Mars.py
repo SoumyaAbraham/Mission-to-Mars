@@ -1,83 +1,115 @@
 # Import dependencies:
-
+from dataclasses import dataclass
 from splinter import Browser
 from bs4 import BeautifulSoup as soup
 from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
+import datetime as dt
 
-executable_path = {'executable_path': ChromeDriverManager().install()}
-browser = Browser('chrome',  **executable_path, headless= False)
+def scrape_all():
+    # Initiate headless driver for deployment:
+    executable_path={'executable_path': ChromeDriverManager().install()}
+    browser= Browser('chrome', **executable_path, headless= True)
 
-# Visit the website:
+    news_title, news_p = mars_news(browser)
 
-url = 'https://redplanetscience.com/'
-browser.visit(url)
+    # Run all screaping functions and store results in dictionary:
 
-# Optional delay for loading page:
+    data = {
+        "news_title" : news_title, 
+        "news_paragraph" : news_p,
+        "features_image" : featured_image(browser),
+        "facts" : mars_facts(),
+        "last_modified" : dt.datetime.now()
+    }
 
-browser.is_element_present_by_css('div.list_text', wait_time=1)
-
-# Parse the HTML:
-
-html = browser.html
-news_soup = soup(html, 'html.parser')
-slide_elem = news_soup.select_one('div.list_text')
+    browser.quit()
+    return data
 
 
-### Featured Title
+## mars_news function:
 
-slide_elem.find('div', class_='content_title')
+def mars_news(browser):
+    # Visit the website:
+    url = 'https://redplanetscience.com/'
+    browser.visit(url)
 
-# Use parent element to retreive only the text for title:
+    # Optional delay for loading page:
+    browser.is_element_present_by_css('div.list_text', wait_time=1)
 
-news_title = slide_elem.find('div', class_= 'content_title').get_text()
-news_title
+    # Parse the HTML:
+    html = browser.html
+    news_soup = soup(html, 'html.parser')
+    
+    # Add try/except for error handling:
+    try:
+        slide_elem = news_soup.select_one('div.list_text')
 
-### Featured Summary
-# Get only text for summary:
-# While there are 15 instances of "article_teaser_body", since we only want 
-# the most recent one (), which is always at the top, we can still use it since
-# the top-most news is the most recent:
+        ### Featured Title
+        # Use parent element to retrieve only the text for title:
+        news_title = slide_elem.find('div', class_= 'content_title').get_text()
+    ### Featured Summary
+    # Get only text for summary:
+        news_p = slide_elem.find('div', class_= 'article_teaser_body').get_text()
+    
+    except AttributeError:
+        return None, None
 
-news_p = slide_elem.find('div', class_= 'article_teaser_body').get_text()
-news_p
+    return news_title, news_p
 
-### Featured Image
 
-# Visit the website:
+### featured_image function:
 
-url = 'https://spaceimages-mars.com/'
-browser.visit(url)
+def featured_image(browser):
+    # Visit the website:
 
-# Get image:
+    url = 'https://spaceimages-mars.com/'
+    browser.visit(url)
 
-full_image_elem = browser.find_by_tag('button')[1]
-full_image_elem.click()
+    # Get image:
 
-# Parse the resulting html with soup:
+    full_image_elem = browser.find_by_tag('button')[1]
+    full_image_elem.click()
 
-html = browser.html
-img_soup = soup(html, 'html.parser')
+    # Parse the resulting html with soup:
 
-# Find the realtive image url:
-# We want to make sure we don't use the href for only the first image. We want
-# to get all the images.
+    html = browser.html
+    img_soup = soup(html, 'html.parser')
 
-image_url_rel = img_soup.find('img', class_='fancybox-image').get('src')
-image_url_rel
+    # Add try/except for error handling:
+    try:
+        # Find the relative image url:
+        image_url_rel = img_soup.find('img', class_='fancybox-image').get('src')
+        
+    except AttributeError:
+        return None
 
-# Use base URL to create an absolute URL:
+    # Use base URL to create an absolute URL:
+    img_url = f'https://spaceimages-mars.com/{image_url_rel}'
+        
+    return img_url
 
-img_url = f'https://spaceimages-mars.com/{image_url_rel}'
-img_url
 
-### Adding facts about Mars (as a table)
+### mars_facts function:
 
-df= pd.read_html('https://galaxyfacts-mars.com/')[0]
-df.columns = ['description', 'Mars', 'Earth']
-df.set_index('description', inplace = True)
-df
+def mars_facts():
 
-df.to_html()
+    # Add try/except for error handling:
+    try: 
+        # Use 'read_html' to scrape the facts table into a dataframe:
+        df= pd.read_html('https://galaxyfacts-mars.com/')[0]
 
-browser.quit()
+    except BaseException:
+        return None
+
+    # Assign columns and set index for df:
+    df.columns = ['Description', 'Mars', 'Earth']
+    df.set_index('Description', inplace = True)
+    
+    # Convert dataframe into HTML format, add bootstrap:
+    return df.to_html()
+
+if __name__ == "__main__":
+    
+    # If running as script, print scraped data
+    print(scrape_all())
